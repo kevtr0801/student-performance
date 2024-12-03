@@ -8,25 +8,106 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(glmnet)
+library(fastDummies)
 
+library(Metrics)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-summary(cars)
+student_df = read_csv("StudentsPerformance.csv")
+head(student_df)
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r}
+student_df <- dummy_cols(
+  student_df, 
+  remove_selected_columns = TRUE  # Remove original categorical columns
+)
+student_df <- student_df %>%
+  select(-`race/ethnicity_group A`, 
+         -`gender_female`, 
+         -`lunch_standard`, 
+         -`parental level of education_associate's degree`, 
+         -`test preparation course_completed`)
+student_df
+```
+
+
+
+
+```{r}
+set.seed(32022)
+n=nrow(student_df)
+index = sample(1:n,100)
+student_df %>% 
+  slice(index) -> studentTrain
+student_df %>% 
+  slice(-index) -> studentValid
+
+```
+
 
 ```{r pressure, echo=FALSE}
-plot(pressure)
+model1 = glm(`math score` ~ `reading score` + `writing score` ,data = studentTrain)
+summary(model1)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+R1 = 1 - model1$deviance/model1$null.deviance
+print(R1)
+```
+
+
+```{r}
+model2 = glm(`math score` ~ ., data=studentTrain)
+summary(model2)
+```
+
+```{r}
+R1 = 1 - model2$deviance/model2$null.deviance
+R1adj = 1-((100-1)/(100-15-1))*(1-R1)
+message(sprintf("R-square: %.4f", R1))
+message(sprintf("Adjusted R-square: %.4f", R1adj))
+```
+
+```{r}
+rmse1 <- rmse(studentValid$`math score`, pred1)
+mae1 <- mae(studentValid$`math score`, pred1)
+
+rmse2 <- rmse(studentValid$`math score`, pred2)
+mae2 <- mae(studentValid$`math score`, pred2)
+
+Acc <- data.frame(
+  Model = c("Model1", "Model2"),
+  RMSE = c(rmse1, rmse2),
+  MAE = c(mae1, mae2)
+)
+
+print(Acc)
+```
+
+```{r}
+ridgeregcv = cv.glmnet(x = as.matrix(studentTrain%>%select(-`math score`)), 
+                       y = studentTrain$`math score`,
+                       alpha=0)
+#From which we obtain the best lambda value
+bestlam = ridgeregcv$lambda.min
+print(bestlam)
+```
+
+```{r}
+ridgereg = glmnet(x = as.matrix(studentTrain%>%select(-`math score`)), 
+                     y = studentTrain$`math score`,
+                     alpha=0, 
+                     lambda = bestlam)
+# Which provides a linear model with the coefficients:
+print(round(coef(ridgereg),4))
+```
+
+```{r}
+
+```
+
