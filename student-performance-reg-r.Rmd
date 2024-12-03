@@ -108,6 +108,34 @@ print(round(coef(ridgereg),4))
 ```
 
 ```{r}
+Mreg = round(coef(model2),4)
+RidgeReg = as.numeric(round(coef(ridgereg),4))
+rbind(Mreg,RidgeReg)
+```
+
+```{r}
+lassoregcv = cv.glmnet(x = as.matrix(studentTrain%>%select(-`math score`)), 
+                       y = studentTrain$`math score`,
+                       alpha=1)
+#From which we obtain the best lambda value
+oneselambda = lassoregcv$lambda.1se
+print(oneselambda)
+```
+
+```{r}
+plot(lassoregcv)
+```
+
+```{r}
+lassoreg = glmnet(x = as.matrix(studentTrain%>%select(-`math score`)), 
+                     y = studentTrain$`math score`,
+                     alpha=1, 
+                     lambda = oneselambda)
+# Which provides a linear model with the coefficients:
+print(round(coef(lassoreg),4))
+```
+
+```{r}
 
 ```
 
