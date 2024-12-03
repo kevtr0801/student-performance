@@ -74,6 +74,10 @@ message(sprintf("Adjusted R-square: %.4f", R1adj))
 ```
 
 ```{r}
+
+pred1 = predict(model1,studentValid)
+pred2 = predict(model2,studentValid)
+
 rmse1 <- rmse(studentValid$`math score`, pred1)
 mae1 <- mae(studentValid$`math score`, pred1)
 
@@ -136,6 +140,101 @@ print(round(coef(lassoreg),4))
 ```
 
 ```{r}
+lambda = seq(0.1,7.5,0.1)
+# So that we get:
+lassoPath = glmnet(x = studentTrain%>%select(-`math score`),
+                   y = studentTrain$`math score`,
+                   alpha = 1,lambda = lambda)
+
+Coeffmat <-as.data.frame(as.matrix(t(coef(lassoPath))))%>%
+           add_column(lambda=lambda[seq(length(lambda),1,-1)])
+
+Coeffmat %>%
+  pivot_longer(cols = -c(lambda, `(Intercept)`), names_to = 'key', values_to = 'Coefficients') %>%
+  ggplot(aes(x = log(lambda), y = Coefficients, color = key)) +
+  geom_line() +
+  facet_wrap(vars(key), scales = 'free_y')
+```
+```{r}
+elasnetcv = cv.glmnet(x = as.matrix(studentTrain%>%select(-`math score`)),
+                      y = studentTrain$`math score`,
+                      alpha=0.5)
+#From which we obtain the best lambda value
+bestlamelasnet = elasnetcv$lambda.min
+print(bestlamelasnet)
+print(coef(elasnetcv))
+```
+
+```{r}
+elastnet = glmnet(
+  x = as.matrix(studentTrain %>% select(-`math score`)),
+  y = studentTrain$`math score`,
+  alpha = 0.5,
+  lambda = bestlamelasnet
+)
+
+predElasNet = predict(elastnet, newx = as.matrix(studentValid %>% select(-`math score`)))
+```
+
+```{r}
+actual = studentValid$`math score`
+
+mae = mae(actual, predElasNet)
+rmse = rmse(actual, predElasNet)
+rsq = 1 - sum((actual - predElasNet)^2) / sum((actual - mean(actual))^2)
+
+# Print metrics
+cat("Mean Absolute Error (MAE):", mae, "\n")
+cat("Root Mean Square Error (RMSE):", rmse, "\n")
+cat("R-squared:", rsq, "\n")
+```
+
+```{r}
+predLasso = predict(lassoreg, newx = as.matrix(studentValid %>% select(-`math score`)))
+
+# Calculate accuracy metrics
+actual = studentValid$`math score`
+
+mae_lasso = mae(actual, predLasso)
+rmse_lasso = rmse(actual, predLasso)
+rsq_lasso = 1 - sum((actual - predLasso)^2) / sum((actual - mean(actual))^2)
+
+# Print metrics
+cat("Lasso Regression Metrics:\n")
+cat("Mean Absolute Error (MAE):", mae_lasso, "\n")
+cat("Root Mean Square Error (RMSE):", rmse_lasso, "\n")
+cat("R-squared:", rsq_lasso, "\n")
+```
+```{r}
+predRidge = predict(ridgereg, newx = as.matrix(studentValid %>% select(-`math score`)))
+
+# Calculate accuracy metrics
+actual = studentValid$`math score`
+
+mae_ridge = mae(actual, predRidge)
+rmse_ridge = rmse(actual, predRidge)
+rsq_ridge = 1 - sum((actual - predRidge)^2) / sum((actual - mean(actual))^2)
+
+# Print metrics
+cat("Ridge Regression Metrics:\n")
+cat("Mean Absolute Error (MAE):", mae_ridge, "\n")
+cat("Root Mean Square Error (RMSE):", rmse_ridge, "\n")
+cat("R-squared:", rsq_ridge, "\n")
+```
+```{r}
+# Collect metrics for all models
+metrics_table <- data.frame(
+  Model = c("Elastic Net", "Lasso", "Ridge"),
+  MAE = c(mae(actual, predElasNet), mae(actual, predLasso), mae(actual, predRidge)),
+  RMSE = c(rmse(actual, predElasNet), rmse(actual, predLasso), rmse(actual, predRidge)),
+  R2 = c(
+    1 - sum((actual - predElasNet)^2) / sum((actual - mean(actual))^2),
+    1 - sum((actual - predLasso)^2) / sum((actual - mean(actual))^2),
+    1 - sum((actual - predRidge)^2) / sum((actual - mean(actual))^2)
+  )
+)
+print(metrics_table)
 
 ```
+
 
